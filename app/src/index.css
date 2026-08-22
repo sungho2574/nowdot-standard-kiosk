@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url("src/assets/fonts/PretendardVariable.woff2") format("woff2-variations");
+}
+
+* {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic",
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+}
+
+/* 키오스크: 텍스트 선택 / 터치 하이라이트 제거 */
+html,
+body {
+  margin: 0;
+  /* 키오스크: 스크롤 방지 (* 에 걸면 애니메이션이 잘리므로 여기에만 적용) */
+  overflow: hidden;
+  background: #000;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
