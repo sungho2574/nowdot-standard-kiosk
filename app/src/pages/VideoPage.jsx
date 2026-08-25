@@ -4,7 +4,6 @@ import { Home } from "lucide-react";
 
 import Button from "src/components/Button";
 import { TOUCH_AREAS } from "src/config/touchAreas";
-import { setLed, clearLed } from "src/lib/led";
 
 export default function VideoPage() {
   const { id } = useParams();
@@ -16,6 +15,7 @@ export default function VideoPage() {
 
   const goHome = useCallback(() => navigate("/", { replace: true }), [navigate]);
 
+  // LED 는 경로를 보고 App 의 LedSync 가 처리한다
   useEffect(() => {
     // 잘못된 id 로 들어온 경우 홈으로
     if (!area) {
@@ -23,14 +23,8 @@ export default function VideoPage() {
       return;
     }
 
-    // 영상이 켜지면 해당 LED 도 켠다
-    setLed(area.id);
-
     // 자동재생이 막힌 경우에도 키오스크가 멈추지 않도록 처리
     videoRef.current?.play().catch(() => {});
-
-    // 영상 종료 / 홈 버튼 / 그 외 어떤 이유로 벗어나든 LED 를 끈다
-    return () => clearLed();
   }, [area, goHome]);
 
   if (!area) return null;

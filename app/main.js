@@ -24,6 +24,9 @@ const ARDUINO_VENDOR_IDS = ['2341', '2a03', '1a86', '0403', '10c4'];
 
 let serial = null;
 let reconnectTimer = null;
+let ledPowerOn = true; // 재연결 시 다시 보내려고 마지막 설정을 기억한다
+let activeLed = 0;     // 같은 이유로 마지막 LED 번호도 기억한다
+let lastSent = null;   // 같은 값을 연달아 보내지 않기 위한 직전 전송값
 
 async function resolvePortPath() {
   if (SERIAL_PORT_PATH) return SERIAL_PORT_PATH;
@@ -55,6 +58,11 @@ async function connectSerial() {
     port.on('open', () => {
       serial = port;
       console.log(`[serial] 연결됨: ${path}`);
+
+      // 아두이노가 리셋됐을 수 있으므로 마지막 상태를 처음부터 다시 반영한다
+      lastSent = null;
+      setLedPower(ledPowerOn);
+      setLed(activeLed);
     });
 
     // 아두이노가 보내는 응답("READY", "OK n")을 로그로만 남긴다
@@ -64,6 +72,7 @@ async function connectSerial() {
 
     port.on('close', () => {
       serial = null;
+      lastSent = null;
       console.warn('[serial] 연결이 끊어졌습니다. 재연결을 시도합니다.');
       scheduleReconnect();
     });
@@ -73,20 +82,36 @@ async function connectSerial() {
   }
 }
 
-/** LED 번호 전송. 시리얼이 없어도 앱은 정상 동작해야 하므로 조용히 무시한다 */
+/** 아두이노로 한 줄 전송. 시리얼이 없어도 앱은 정상 동작해야 하므로 조용히 무시한다 */
+function send(line) {
+  if (!serial?.isOpen) {
+    console.warn(`[serial] 미연결 상태 — "${line}" 전송 생략`);
+    return false;
+  }
+
+  // 같은 값을 연달아 보내봐야 결과가 같으므로 건너뛴다
+  if (line === lastSent) return true;
+  lastSent = line;
+
+  serial.write(`${line}\n`, (error) => {
+    if (error) console.error('[serial] 전송 실패:', error.message);
+  });
+  return true;
+}
+
+/** LED 전체 점등 여부 */
+function setLedPower(enabled) {
+  ledPowerOn = Boolean(enabled);
+  return send(ledPowerOn ? 'on' : 'off');
+}
+
+/** LED 번호 전송 */
 function setLed(value) {
   const led = Number(value);
   if (!Number.isInteger(led) || led < 0) return false;
 
-  if (!serial?.isOpen) {
-    console.warn(`[serial] 미연결 상태 — LED ${led} 전송 생략`);
-    return false;
-  }
-
-  serial.write(`${led}\n`, (error) => {
-    if (error) console.error('[serial] 전송 실패:', error.message);
-  });
-  return true;
+  activeLed = led;
+  return send(String(led));
 }
 
 /* ------------------------------------------------------------------ */
@@ -109,6 +134,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   ipcMain.handle('led:set', (_event, value) => setLed(value));
+  ipcMain.handle('led:power', (_event, enabled) => setLedPower(enabled));
 
   connectSerial();
   createWindow();

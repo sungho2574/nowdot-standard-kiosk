@@ -24,3 +24,16 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* 터치 표시 펄스 — 기본 크기에서 시작해 --pulse-scale 배까지 커지면서 사라진다 */
+@keyframes touch-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: scale(var(--pulse-scale, 2));
+    opacity: 0;
+  }
+}

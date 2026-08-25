@@ -8,7 +8,7 @@ export function setLed(value) {
   window.kiosk?.setLed?.(value);
 }
 
-/** 전체 끄기 */
-export function clearLed() {
-  setLed(0);
+/** LED 전체를 켜거나 끈다 (설정 토글) */
+export function setLedPower(enabled) {
+  window.kiosk?.setLedPower?.(enabled);
 }
