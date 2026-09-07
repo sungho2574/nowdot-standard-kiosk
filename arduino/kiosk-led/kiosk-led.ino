@@ -7,6 +7,7 @@
  *   "0\n"          : 1~5번 전부 하얀색 (기본 상태)
  *   "off\n"        : LED 전체 소등 (앱의 설정에서 끈 상태)
  *   "on\n"         : 소등 해제 — 위 규칙대로 다시 켬
+ *   "color 8000ff\n" : 눌렸을 때의 색을 바꿈 (RRGGBB 16진수)
  *
  * 6번 LED 는 시리얼 입력과 무관하게 항상 하얀색입니다.
  *
@@ -58,8 +59,8 @@ const int PIXEL_COUNT = 200;
 /** 밝기 (0~255) */
 const uint8_t BRIGHTNESS = 200;
 
-/** 눌렸을 때의 색 */
-const CRGB ACTIVE_COLOR = CRGB(128, 0, 255); // 보라색
+/** 눌렸을 때의 색. 앱에서 "color RRGGBB" 로 바꿀 수 있다 */
+CRGB activeColor = CRGB(128, 0, 255); // 기본 보라색
 
 /** 기본 색 */
 const CRGB IDLE_COLOR = CRGB(255, 255, 255); // 하얀색
@@ -71,7 +72,7 @@ CLEDController *ctrl[LED_NUM];
 int activeLed = 0;      // 0 = 보라색인 LED 없음 (전부 기본 색)
 bool ledEnabled = true; // false 면 번호와 무관하게 전체 소등
 
-char buf[16]; // String 대신 고정 버퍼를 쓴다 (RAM 절약)
+char buf[24]; // String 대신 고정 버퍼를 쓴다 (RAM 절약)
 
 void setup() {
   Serial.begin(9600);
@@ -116,6 +117,19 @@ void serialHandler() {
     return;
   }
 
+  // 색 변경: "color RRGGBB"
+  if (strncasecmp(buf, "color ", 6) == 0) {
+    char *hex = buf + 6;
+    long rgb = strtol(hex, NULL, 16);
+
+    activeColor = CRGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    updateLeds();
+
+    Serial.print(F("OK COLOR "));
+    Serial.println(hex);
+    return;
+  }
+
   int value = atoi(buf);
 
   // 6번은 항상 하얀색이므로 앱에서 보내는 번호는 0~5 입니다.
@@ -144,7 +158,7 @@ void updateLeds() {
       // 마지막 6번은 시리얼 입력과 무관하게 언제나 기본 색
       bool isLast = (i == LED_NUM - 1);
       bool active = !isLast && (i == activeLed - 1);
-      color = active ? ACTIVE_COLOR : IDLE_COLOR;
+      color = active ? activeColor : IDLE_COLOR;
     }
 
     // 픽셀 배열 없이 색 하나를 PIXEL_COUNT 만큼 반복 전송한다

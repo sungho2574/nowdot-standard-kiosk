@@ -7,4 +7,7 @@ contextBridge.exposeInMainWorld('kiosk', {
 
   /** LED 전체 점등 여부를 켜고 끈다 */
   setLedPower: (enabled) => ipcRenderer.invoke('led:power', enabled),
+
+  /** 눌렸을 때의 LED 색을 바꾼다 (RRGGBB 16진수 문자열) */
+  setLedColor: (hex) => ipcRenderer.invoke('led:color', hex),
 });

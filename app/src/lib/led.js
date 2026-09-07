@@ -12,3 +12,8 @@ export function setLed(value) {
 export function setLedPower(enabled) {
   window.kiosk?.setLedPower?.(enabled);
 }
+
+/** 눌렸을 때의 LED 색을 바꾼다 (RRGGBB 16진수 문자열) */
+export function setLedColor(hex) {
+  window.kiosk?.setLedColor?.(hex);
+}
