@@ -2,16 +2,40 @@ import { useEffect, useState } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
 
 import Button from "src/components/Button";
-import { setLedPower, setLedColor } from "src/lib/led";
+import { setLedPower, setLedColor, setLedIdleColor } from "src/lib/led";
 
 const COLOR_KEY = "ledColor";
-const DEFAULT_COLOR = "8000ff"; // 보라색
+const IDLE_COLOR_KEY = "ledIdleColor";
+
+const DEFAULT_COLOR = "8000ff"; // 활성 색상 — 보라색
+const DEFAULT_IDLE_COLOR = "ffffff"; // 기본 색상 — 하얀색
+
+function ColorRow({ label, value, onChange }) {
+  return (
+    <div className="flex items-center justify-between gap-6">
+      <span className="text-[1vw] font-medium whitespace-nowrap">{label}</span>
+
+      <div className="flex items-center gap-3">
+        <span className="w-[4.5vw] text-right text-[0.9vw] whitespace-nowrap text-gray-500 tabular-nums">#{value}</span>
+
+        <input
+          type="color"
+          aria-label={`${label} 선택`}
+          value={`#${value}`}
+          onChange={(event) => onChange(event.target.value.slice(1))}
+          className="h-[2vw] w-[3.2vw] cursor-pointer rounded-lg border border-gray-300 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-[0.2vw] [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch]:border-none"
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function Settings() {
   const [open, setOpen] = useState(false);
   // 앱을 켤 때는 항상 켜진 상태로 시작한다 (아두이노도 리셋되면 켜진 상태이므로 서로 어긋나지 않는다)
   const [ledOn, setLedOn] = useState(true);
   const [color, setColor] = useState(() => localStorage.getItem(COLOR_KEY) || DEFAULT_COLOR);
+  const [idleColor, setIdleColor] = useState(() => localStorage.getItem(IDLE_COLOR_KEY) || DEFAULT_IDLE_COLOR);
 
   // 상태가 바뀔 때마다 아두이노에 반영한다 (첫 렌더에서도 실행되어 초기 상태를 맞춘다)
   useEffect(() => {
@@ -28,6 +52,15 @@ export default function Settings() {
     return () => clearTimeout(timer);
   }, [color]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLedIdleColor(idleColor);
+      localStorage.setItem(IDLE_COLOR_KEY, idleColor);
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [idleColor]);
+
   const handleToggle = () => setLedOn((prev) => !prev);
 
   return (
@@ -35,13 +68,13 @@ export default function Settings() {
       {open && (
         <div className="flex w-[20vw] flex-col gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 text-black shadow-lg">
           <div className="flex items-center justify-between gap-6">
-            <span className="text-[1vw] font-medium whitespace-nowrap">LED 전체</span>
+            <span className="text-[1vw] font-medium whitespace-nowrap">전체 ON/OFF</span>
 
             <button
               type="button"
               role="switch"
               aria-checked={ledOn}
-              aria-label="LED 전체 켜기/끄기"
+              aria-label="전체 ON/OFF"
               onClick={handleToggle}
               className={`relative h-[1.7vw] w-[3.2vw] shrink-0 rounded-full transition-colors ${ledOn ? "bg-green-500" : "bg-gray-300"}`}
             >
@@ -53,20 +86,9 @@ export default function Settings() {
             </button>
           </div>
 
-          <div className="flex items-center justify-between gap-6 border-t border-gray-200 pt-3">
-            <span className="text-[1vw] font-medium whitespace-nowrap">색상</span>
-
-            <div className="flex items-center gap-3">
-              <span className="w-[4.5vw] text-right text-[0.9vw] whitespace-nowrap text-gray-500 tabular-nums">#{color}</span>
-
-              <input
-                type="color"
-                aria-label="LED 색상 선택"
-                value={`#${color}`}
-                onChange={(event) => setColor(event.target.value.slice(1))}
-                className="h-[2vw] w-[3.2vw] cursor-pointer rounded-lg border border-gray-300 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-[0.2vw] [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch]:border-none"
-              />
-            </div>
+          <div className="flex flex-col gap-3 border-t border-gray-200 pt-3">
+            <ColorRow label="기본 색상" value={idleColor} onChange={setIdleColor} />
+            <ColorRow label="활성 색상" value={color} onChange={setColor} />
           </div>
         </div>
       )}

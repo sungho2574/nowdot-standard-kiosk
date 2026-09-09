@@ -26,7 +26,8 @@ let serial = null;
 let reconnectTimer = null;
 let ledPowerOn = true; // 재연결 시 다시 보내려고 마지막 설정을 기억한다
 let activeLed = 0;     // 같은 이유로 마지막 LED 번호도 기억한다
-let ledColor = null;   // 마지막으로 지정한 색 (RRGGBB)
+let ledColor = null;     // 마지막으로 지정한 눌렸을 때의 색 (RRGGBB)
+let ledIdleColor = null; // 마지막으로 지정한 평소 색 (RRGGBB)
 let lastSent = null;   // 같은 값을 연달아 보내지 않기 위한 직전 전송값
 
 async function resolvePortPath() {
@@ -63,6 +64,7 @@ async function connectSerial() {
       // 아두이노가 리셋됐을 수 있으므로 마지막 상태를 처음부터 다시 반영한다
       lastSent = null;
       if (ledColor) setLedColor(ledColor);
+      if (ledIdleColor) setLedIdleColor(ledIdleColor);
       setLedPower(ledPowerOn);
       setLed(activeLed);
     });
@@ -115,6 +117,14 @@ function setLedColor(hex) {
   return send(`color ${ledColor}`);
 }
 
+/** 평소(기본) LED 색 (RRGGBB 16진수) */
+function setLedIdleColor(hex) {
+  if (typeof hex !== 'string' || !/^[0-9a-fA-F]{6}$/.test(hex)) return false;
+
+  ledIdleColor = hex.toLowerCase();
+  return send(`idle ${ledIdleColor}`);
+}
+
 /** LED 번호 전송 */
 function setLed(value) {
   const led = Number(value);
@@ -146,6 +156,7 @@ app.whenReady().then(() => {
   ipcMain.handle('led:set', (_event, value) => setLed(value));
   ipcMain.handle('led:power', (_event, enabled) => setLedPower(enabled));
   ipcMain.handle('led:color', (_event, hex) => setLedColor(hex));
+  ipcMain.handle('led:idle', (_event, hex) => setLedIdleColor(hex));
 
   connectSerial();
   createWindow();

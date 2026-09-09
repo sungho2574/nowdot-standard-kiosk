@@ -7,7 +7,8 @@
  *   "0\n"          : 1~5번 전부 하얀색 (기본 상태)
  *   "off\n"        : LED 전체 소등 (앱의 설정에서 끈 상태)
  *   "on\n"         : 소등 해제 — 위 규칙대로 다시 켬
- *   "color 8000ff\n" : 눌렸을 때의 색을 바꿈 (RRGGBB 16진수)
+ *   "color 8000ff\n" : 활성 색상(영상 재생 중)을 바꿈 (RRGGBB 16진수)
+ *   "idle ffffff\n"  : 기본 색상을 바꿈 (RRGGBB 16진수)
  *
  * 6번 LED 는 시리얼 입력과 무관하게 항상 하얀색입니다.
  *
@@ -59,11 +60,11 @@ const int PIXEL_COUNT = 200;
 /** 밝기 (0~255) */
 const uint8_t BRIGHTNESS = 200;
 
-/** 눌렸을 때의 색. 앱에서 "color RRGGBB" 로 바꿀 수 있다 */
-CRGB activeColor = CRGB(128, 0, 255); // 기본 보라색
+/** 활성 색상. 앱에서 "color RRGGBB" 로 바꿀 수 있다 */
+CRGB activeColor = CRGB(128, 0, 255); // 기본값 보라색
 
-/** 기본 색 */
-const CRGB IDLE_COLOR = CRGB(255, 255, 255); // 하얀색
+/** 기본 색상. 앱에서 "idle RRGGBB" 로 바꿀 수 있다 */
+CRGB idleColor = CRGB(255, 255, 255); // 기본값 하얀색
 
 // showColor() 는 이 배열을 읽지 않습니다. 등록에 필요해서 자리만 잡아둡니다.
 CRGB dummy[1];
@@ -117,16 +118,23 @@ void serialHandler() {
     return;
   }
 
-  // 색 변경: "color RRGGBB"
+  // 활성 색상: "color RRGGBB"
   if (strncasecmp(buf, "color ", 6) == 0) {
-    char *hex = buf + 6;
-    long rgb = strtol(hex, NULL, 16);
-
-    activeColor = CRGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    activeColor = parseHex(buf + 6);
     updateLeds();
 
     Serial.print(F("OK COLOR "));
-    Serial.println(hex);
+    Serial.println(buf + 6);
+    return;
+  }
+
+  // 기본 색상: "idle RRGGBB"
+  if (strncasecmp(buf, "idle ", 5) == 0) {
+    idleColor = parseHex(buf + 5);
+    updateLeds();
+
+    Serial.print(F("OK IDLE "));
+    Serial.println(buf + 5);
     return;
   }
 
@@ -147,6 +155,12 @@ void serialHandler() {
   Serial.println(activeLed);
 }
 
+/** "8000ff" 같은 16진수 문자열을 색으로 바꾼다 */
+CRGB parseHex(const char *hex) {
+  long rgb = strtol(hex, NULL, 16);
+  return CRGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+}
+
 void updateLeds() {
   for (int i = 0; i < LED_NUM; i++) {
     CRGB color;
@@ -158,7 +172,7 @@ void updateLeds() {
       // 마지막 6번은 시리얼 입력과 무관하게 언제나 기본 색
       bool isLast = (i == LED_NUM - 1);
       bool active = !isLast && (i == activeLed - 1);
-      color = active ? activeColor : IDLE_COLOR;
+      color = active ? activeColor : idleColor;
     }
 
     // 픽셀 배열 없이 색 하나를 PIXEL_COUNT 만큼 반복 전송한다

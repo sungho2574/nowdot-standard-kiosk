@@ -10,4 +10,7 @@ contextBridge.exposeInMainWorld('kiosk', {
 
   /** 눌렸을 때의 LED 색을 바꾼다 (RRGGBB 16진수 문자열) */
   setLedColor: (hex) => ipcRenderer.invoke('led:color', hex),
+
+  /** 평소(기본) LED 색을 바꾼다 (RRGGBB 16진수 문자열) */
+  setLedIdleColor: (hex) => ipcRenderer.invoke('led:idle', hex),
 });

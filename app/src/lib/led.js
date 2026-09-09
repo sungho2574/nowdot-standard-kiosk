@@ -17,3 +17,8 @@ export function setLedPower(enabled) {
 export function setLedColor(hex) {
   window.kiosk?.setLedColor?.(hex);
 }
+
+/** 평소(기본) LED 색을 바꾼다 (RRGGBB 16진수 문자열) */
+export function setLedIdleColor(hex) {
+  window.kiosk?.setLedIdleColor?.(hex);
+}
