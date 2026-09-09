@@ -30,6 +30,10 @@ let ledColor = null;     // 마지막으로 지정한 눌렸을 때의 색 (RRGG
 let ledIdleColor = null; // 마지막으로 지정한 평소 색 (RRGGBB)
 let lastSent = null;   // 같은 값을 연달아 보내지 않기 위한 직전 전송값
 let mainWindow = null; // READY 를 렌더러에 알리기 위해 창을 들고 있는다
+let readyTimer = null; // READY 를 못 받는 경우를 대비한 예비 반영 타이머
+
+// 포트를 열면 아두이노가 리셋되고 부트로더가 이 정도 돈다. 그 사이 보낸 건 버려진다.
+const BOOTLOADER_WAIT = 2500;
 
 async function resolvePortPath() {
   if (SERIAL_PORT_PATH) return SERIAL_PORT_PATH;
@@ -64,9 +68,15 @@ async function connectSerial() {
       serial = port;
       console.log(`[serial] 연결됨: ${path}`);
 
-      // 포트를 열면 아두이노가 리셋되어 부트로더가 도는데, 그동안 보낸 건 버려진다.
-      // 그래서 여기서 보낸 게 반영되지 않을 수 있고, 실제 반영은 아래 READY 에서 한다.
+      // 여기서 보낸 건 부트로더 구간이라 버려질 수 있다. 실제 반영은 announceReady() 가 맡는다.
       restoreState();
+
+      // 아두이노가 READY 를 보내지 않는 경우(포트를 열어도 리셋되지 않는 보드 등)를 대비한 예비책
+      clearTimeout(readyTimer);
+      readyTimer = setTimeout(() => {
+        console.log('[serial] 부트로더 대기 시간 경과 — 설정을 다시 반영합니다.');
+        announceReady();
+      }, BOOTLOADER_WAIT);
     });
 
     port.on('data', (chunk) => {
@@ -76,16 +86,13 @@ async function connectSerial() {
       received = lines.pop(); // 마지막 조각은 다음 청크와 이어붙인다
 
       for (const line of lines.map((item) => item.trim()).filter(Boolean)) {
-        console.log(`[serial] ${line}`);
+        console.log(`[serial] < ${line}`);
 
         // 아두이노가 부팅을 마쳤다는 신호 — 이제부터 명령이 제대로 전달된다
         if (line === 'READY') {
           console.log('[serial] 아두이노 준비 완료 — 마지막 상태를 다시 보냅니다.');
-          restoreState();
-
-          // 메인 프로세스가 아직 설정값을 모를 수 있으므로 렌더러에게도 알린다.
-          // (렌더러가 화면에 띄우기 전에 READY 가 지나가는 경우)
-          mainWindow?.webContents.send('led:ready');
+          clearTimeout(readyTimer);
+          announceReady();
         }
       }
     });
@@ -104,6 +111,16 @@ async function connectSerial() {
   }
 }
 
+/**
+ * 아두이노가 명령을 받을 수 있는 상태가 됐을 때 호출한다.
+ * 메인이 아는 값을 보내고, 렌더러에게도 알려 현재 설정을 다시 밀어넣게 한다.
+ * (렌더러가 뜨기 전에 READY 가 지나가면 메인은 색을 모르기 때문)
+ */
+function announceReady() {
+  restoreState();
+  mainWindow?.webContents.send('led:ready');
+}
+
 /** 앱이 들고 있는 마지막 상태를 아두이노에 처음부터 다시 반영한다 */
 function restoreState() {
   lastSent = null;
@@ -116,14 +133,18 @@ function restoreState() {
 /** 아두이노로 한 줄 전송. 시리얼이 없어도 앱은 정상 동작해야 하므로 조용히 무시한다 */
 function send(line) {
   if (!serial?.isOpen) {
-    console.warn(`[serial] 미연결 상태 — "${line}" 전송 생략`);
+    console.warn(`[serial] > ${line} (미연결 상태라 전송 생략)`);
     return false;
   }
 
   // 같은 값을 연달아 보내봐야 결과가 같으므로 건너뛴다
-  if (line === lastSent) return true;
+  if (line === lastSent) {
+    console.log(`[serial] > ${line} (직전과 같아 생략)`);
+    return true;
+  }
   lastSent = line;
 
+  console.log(`[serial] > ${line}`);
   serial.write(`${line}\n`, (error) => {
     if (error) console.error('[serial] 전송 실패:', error.message);
   });
@@ -176,6 +197,14 @@ function createWindow() {
     },
   });
   mainWindow = win;
+
+  // 렌더러(React)의 console 출력을 터미널에서도 볼 수 있게 넘긴다
+  win.webContents.on('console-message', (...args) => {
+    // Electron 버전에 따라 (event, level, message, ...) 또는 (details) 형태로 온다
+    const message = typeof args[2] === 'string' ? args[2] : args[0]?.message;
+    if (message) console.log(`[renderer] ${message}`);
+  });
+
   win.loadURL('http://localhost:5173/');   // load react app url
   // win.webContents.openDevTools({ mode: 'detach' }) //open dev tools
 }

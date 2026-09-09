@@ -38,6 +38,17 @@ export default function Settings() {
   const [color, setColor] = useState(() => localStorage.getItem(COLOR_KEY) || DEFAULT_COLOR);
   const [idleColor, setIdleColor] = useState(() => localStorage.getItem(IDLE_COLOR_KEY) || DEFAULT_IDLE_COLOR);
 
+  // 저장된 설정이 무엇으로 읽혔는지 터미널에서 확인할 수 있게 남긴다
+  useEffect(() => {
+    console.log(
+      `[설정] 저장값 읽음 — 기본 색상 #${localStorage.getItem(IDLE_COLOR_KEY) ?? "(없음)"}, ` +
+        `활성 색상 #${localStorage.getItem(COLOR_KEY) ?? "(없음)"} / ` +
+        `적용값 기본 #${idleColor}, 활성 #${color}, 전원 ${ledOn ? "ON" : "OFF"}`
+    );
+    console.log(`[설정] window.kiosk 사용 가능: ${window.kiosk ? Object.keys(window.kiosk).join(", ") : "없음"}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 상태가 바뀔 때마다 아두이노에 반영한다 (첫 렌더에서도 실행되어 초기 상태를 맞춘다)
   useEffect(() => {
     setLedPower(ledOn);
@@ -79,6 +90,7 @@ export default function Settings() {
   // 부팅이 끝났다는 신호를 받으면 지금 설정을 다시 밀어넣는다.
   useEffect(() => {
     return window.kiosk?.onLedReady?.(() => {
+      console.log(`[설정] 아두이노 준비 신호 수신 — 기본 #${idleColor}, 활성 #${color} 재전송`);
       setLedPower(ledOn);
       setLedIdleColor(idleColor);
       setLedColor(color);
