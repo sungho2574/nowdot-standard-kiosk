@@ -31,9 +31,21 @@ let ledIdleColor = null; // 마지막으로 지정한 평소 색 (RRGGBB)
 let lastSent = null;   // 같은 값을 연달아 보내지 않기 위한 직전 전송값
 let mainWindow = null; // READY 를 렌더러에 알리기 위해 창을 들고 있는다
 let readyTimer = null; // READY 를 못 받는 경우를 대비한 예비 반영 타이머
+let sendQueue = [];    // 아직 내보내지 않은 명령 줄
+let sendTimer = null;  // 다음 줄을 내보낼 때까지 기다리는 타이머
 
 // 포트를 열면 아두이노가 리셋되고 부트로더가 이 정도 돈다. 그 사이 보낸 건 버려진다.
 const BOOTLOADER_WAIT = 2500;
+
+/**
+ * 명령 사이에 두는 간격(ms).
+ *
+ * 아두이노는 명령을 받으면 LED 를 다시 그리는데, 이때 핀 6개를 합쳐 수십 ms 동안
+ * 타이밍을 붙잡고 있어서 그 사이에 도착한 바이트를 놓친다.
+ * 실제로 "idle ff0000" 이 앞부분째 잘려 다른 명령으로 해석되는 일이 있었다.
+ * 한 줄씩 띄워 보내면 아두이노가 그리기를 끝낸 뒤에 다음 줄을 받는다.
+ */
+const SEND_GAP = 100;
 
 async function resolvePortPath() {
   if (SERIAL_PORT_PATH) return SERIAL_PORT_PATH;
@@ -102,6 +114,7 @@ async function connectSerial() {
     port.on('close', () => {
       serial = null;
       lastSent = null;
+      clearQueue();
       console.warn('[serial] 연결이 끊어졌습니다. 재연결을 시도합니다.');
       scheduleReconnect();
     });
@@ -123,6 +136,8 @@ function announceReady() {
 
 /** 앱이 들고 있는 마지막 상태를 아두이노에 처음부터 다시 반영한다 */
 function restoreState() {
+  // 아직 안 나간 예전 명령은 버린다. 지금 상태를 처음부터 다시 쌓을 것이므로.
+  clearQueue();
   lastSent = null;
   if (ledIdleColor) setLedIdleColor(ledIdleColor);
   if (ledColor) setLedColor(ledColor);
@@ -144,11 +159,39 @@ function send(line) {
   }
   lastSent = line;
 
+  sendQueue.push(line);
+  flushQueue();
+  return true;
+}
+
+/** 큐에 쌓인 명령을 SEND_GAP 간격으로 한 줄씩 내보낸다 */
+function flushQueue() {
+  if (sendTimer || sendQueue.length === 0) return;
+
+  if (!serial?.isOpen) {
+    sendQueue = [];
+    return;
+  }
+
+  const line = sendQueue.shift();
+
   console.log(`[serial] > ${line}`);
   serial.write(`${line}\n`, (error) => {
     if (error) console.error('[serial] 전송 실패:', error.message);
   });
-  return true;
+
+  // 방금 보낸 줄을 아두이노가 다 소화할 때까지는 다음 줄을 내보내지 않는다.
+  // (큐가 비어 있어도 타이머는 걸어둔다. 바로 뒤에 들어온 명령까지 간격을 지키도록)
+  sendTimer = setTimeout(() => {
+    sendTimer = null;
+    flushQueue();
+  }, SEND_GAP);
+}
+
+/** 아직 못 내보낸 명령을 버린다 (연결이 끊겼거나 처음부터 다시 보낼 때) */
+function clearQueue() {
+  // 타이머는 그대로 둔다. 지워버리면 방금 보낸 줄과 간격 없이 붙어 나갈 수 있다.
+  sendQueue = [];
 }
 
 /** LED 전체 점등 여부 */
@@ -233,6 +276,11 @@ app.on('window-all-closed', function () {
 
 // 종료 전에 LED 를 꺼둔다
 app.on('before-quit', () => {
-  setLed(0);
-  serial?.close();
+  // 큐를 거치면 타이머를 기다리다 못 나가므로 여기서는 곧바로 써넣는다
+  clearQueue();
+
+  if (serial?.isOpen) {
+    activeLed = 0;
+    serial.write('0\n', () => serial?.close());
+  }
 });
