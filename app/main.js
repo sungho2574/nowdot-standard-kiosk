@@ -57,20 +57,33 @@ async function connectSerial() {
 
     const port = new SerialPort({ path, baudRate: BAUD_RATE });
 
+    let received = ''; // 청크가 줄 중간에서 잘리므로 모아서 줄 단위로 처리한다
+
     port.on('open', () => {
       serial = port;
       console.log(`[serial] 연결됨: ${path}`);
 
-      // 아두이노가 리셋됐을 수 있으므로 마지막 상태를 처음부터 다시 반영한다
-      lastSent = null;
-      if (ledColor) setLedColor(ledColor);
-      if (ledIdleColor) setLedIdleColor(ledIdleColor);
-      setLedPower(ledPowerOn);
-      setLed(activeLed);
+      // 포트를 열면 아두이노가 리셋되어 부트로더가 도는데, 그동안 보낸 건 버려진다.
+      // 그래서 여기서 보낸 게 반영되지 않을 수 있고, 실제 반영은 아래 READY 에서 한다.
+      restoreState();
     });
 
-    // 아두이노가 보내는 응답("READY", "OK n")을 로그로만 남긴다
-    port.on('data', (chunk) => console.log(`[serial] ${chunk.toString().trim()}`));
+    port.on('data', (chunk) => {
+      received += chunk.toString();
+
+      const lines = received.split('\n');
+      received = lines.pop(); // 마지막 조각은 다음 청크와 이어붙인다
+
+      for (const line of lines.map((item) => item.trim()).filter(Boolean)) {
+        console.log(`[serial] ${line}`);
+
+        // 아두이노가 부팅을 마쳤다는 신호 — 이제부터 명령이 제대로 전달된다
+        if (line === 'READY') {
+          console.log('[serial] 아두이노 준비 완료 — 마지막 상태를 다시 보냅니다.');
+          restoreState();
+        }
+      }
+    });
 
     port.on('error', (error) => console.error('[serial]', error.message));
 
@@ -84,6 +97,15 @@ async function connectSerial() {
     console.error('[serial]', error.message);
     scheduleReconnect();
   }
+}
+
+/** 앱이 들고 있는 마지막 상태를 아두이노에 처음부터 다시 반영한다 */
+function restoreState() {
+  lastSent = null;
+  if (ledIdleColor) setLedIdleColor(ledIdleColor);
+  if (ledColor) setLedColor(ledColor);
+  setLedPower(ledPowerOn);
+  setLed(activeLed);
 }
 
 /** 아두이노로 한 줄 전송. 시리얼이 없어도 앱은 정상 동작해야 하므로 조용히 무시한다 */
