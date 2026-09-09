@@ -75,6 +75,16 @@ export default function Settings() {
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [open]);
 
+  // 아두이노는 앱이 연결될 때마다 리셋되어 하드코딩 기본값으로 돌아간다.
+  // 부팅이 끝났다는 신호를 받으면 지금 설정을 다시 밀어넣는다.
+  useEffect(() => {
+    return window.kiosk?.onLedReady?.(() => {
+      setLedPower(ledOn);
+      setLedIdleColor(idleColor);
+      setLedColor(color);
+    });
+  }, [ledOn, idleColor, color]);
+
   const handleToggle = () => setLedOn((prev) => !prev);
 
   return (

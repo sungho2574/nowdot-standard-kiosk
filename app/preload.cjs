@@ -13,4 +13,15 @@ contextBridge.exposeInMainWorld('kiosk', {
 
   /** 평소(기본) LED 색을 바꾼다 (RRGGBB 16진수 문자열) */
   setLedIdleColor: (hex) => ipcRenderer.invoke('led:idle', hex),
+
+  /**
+   * 아두이노가 부팅을 마쳤을 때 호출된다. 해제 함수를 돌려준다.
+   * 아두이노는 연결될 때마다 리셋되어 기본값으로 돌아가므로,
+   * 이 시점에 현재 설정을 다시 보내야 한다.
+   */
+  onLedReady: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('led:ready', handler);
+    return () => ipcRenderer.off('led:ready', handler);
+  },
 });

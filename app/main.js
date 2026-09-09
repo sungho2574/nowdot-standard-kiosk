@@ -29,6 +29,7 @@ let activeLed = 0;     // 같은 이유로 마지막 LED 번호도 기억한다
 let ledColor = null;     // 마지막으로 지정한 눌렸을 때의 색 (RRGGBB)
 let ledIdleColor = null; // 마지막으로 지정한 평소 색 (RRGGBB)
 let lastSent = null;   // 같은 값을 연달아 보내지 않기 위한 직전 전송값
+let mainWindow = null; // READY 를 렌더러에 알리기 위해 창을 들고 있는다
 
 async function resolvePortPath() {
   if (SERIAL_PORT_PATH) return SERIAL_PORT_PATH;
@@ -81,6 +82,10 @@ async function connectSerial() {
         if (line === 'READY') {
           console.log('[serial] 아두이노 준비 완료 — 마지막 상태를 다시 보냅니다.');
           restoreState();
+
+          // 메인 프로세스가 아직 설정값을 모를 수 있으므로 렌더러에게도 알린다.
+          // (렌더러가 화면에 띄우기 전에 READY 가 지나가는 경우)
+          mainWindow?.webContents.send('led:ready');
         }
       }
     });
@@ -170,6 +175,7 @@ function createWindow() {
       preload: join(__dirname, 'preload.cjs'),
     },
   });
+  mainWindow = win;
   win.loadURL('http://localhost:5173/');   // load react app url
   // win.webContents.openDevTools({ mode: 'detach' }) //open dev tools
 }
