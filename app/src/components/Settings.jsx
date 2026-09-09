@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
 
 import Button from "src/components/Button";
@@ -32,6 +32,7 @@ function ColorRow({ label, value, onChange }) {
 
 export default function Settings() {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
   // 앱을 켤 때는 항상 켜진 상태로 시작한다 (아두이노도 리셋되면 켜진 상태이므로 서로 어긋나지 않는다)
   const [ledOn, setLedOn] = useState(true);
   const [color, setColor] = useState(() => localStorage.getItem(COLOR_KEY) || DEFAULT_COLOR);
@@ -61,10 +62,23 @@ export default function Settings() {
     return () => clearTimeout(timer);
   }, [idleColor]);
 
+  // 설정 밖을 누르면 닫는다. 톱니바퀴 버튼도 이 안에 있으므로 여닫기는 그대로 동작한다.
+  useEffect(() => {
+    if (!open) return;
+
+    const handleOutside = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+
+    // 터치와 마우스를 함께 받기 위해 pointerdown 을 쓴다
+    document.addEventListener("pointerdown", handleOutside);
+    return () => document.removeEventListener("pointerdown", handleOutside);
+  }, [open]);
+
   const handleToggle = () => setLedOn((prev) => !prev);
 
   return (
-    <div className="fixed right-2 bottom-2 flex flex-col items-end gap-3 p-3" onClick={(event) => event.stopPropagation()}>
+    <div ref={rootRef} className="fixed right-2 bottom-2 flex flex-col items-end gap-3 p-3" onClick={(event) => event.stopPropagation()}>
       {open && (
         <div className="flex w-[20vw] flex-col gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 text-black shadow-lg">
           <div className="flex items-center justify-between gap-6">
